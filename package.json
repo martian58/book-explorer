@@ -1,5 +1,7 @@
 {
-  "name": "book_shop",
+  "name": "book-explorer",
+  "description": "A React application for exploring books with Tailwind CSS and Vite.",
+  "author": "Fuad Alizada",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,6 +13,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
+    "@vercel/analytics": "^1.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
