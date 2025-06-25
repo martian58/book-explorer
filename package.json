@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.32.1",
     "@tailwindcss/vite": "^4.1.10",
     "@vercel/analytics": "^1.5.0",
     "react": "^19.1.0",
