@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import Book from '../components/Book';
 import Footer from '../components/Footer';
+
+const BASE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 function Home() {
   const [query, setQuery] = useState('');
@@ -8,13 +11,11 @@ function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const [starredBooks, setStarredBooks] = useState([]);
   const inputRef = useRef();
+  const { getToken, isSignedIn } = useAuth();
 
-  useEffect(() => {
-    fetchBooks('bestsellers');
-    // eslint-disable-next-line
-  }, []);
-
+  // Fetch books (Open Library)
   const fetchBooks = async (searchQuery) => {
     setLoading(true);
     setError('');
@@ -31,6 +32,35 @@ function Home() {
     setLoading(false);
   };
 
+  // Fetch default books on mount
+  useEffect(() => {
+    fetchBooks('bestsellers');
+    // eslint-disable-next-line
+  }, []);
+
+  // Fetch starred books for the user when signed in
+  useEffect(() => {
+    let ignore = false;
+    if (!isSignedIn) {
+      setStarredBooks([]);
+      return;
+    }
+    getToken().then(token => {
+      fetch(`${BASE_API_URL}/api/starred`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!ignore) setStarredBooks(Array.isArray(data.books) ? data.books : []);
+        })
+        .catch(() => {
+          if (!ignore) setStarredBooks([]);
+        });
+    });
+    return () => { ignore = true };
+  }, [isSignedIn, getToken]);
+
+  // Search handlers
   const handleSearch = () => {
     if (!query.trim()) return;
     fetchBooks(query);
@@ -39,6 +69,15 @@ function Home() {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleSearch();
+  };
+
+  // Handle update from Book star/unstar
+  const handleStarChange = (bookId, starred) => {
+    setStarredBooks(prev =>
+      starred
+        ? [...prev, bookId]
+        : prev.filter(id => id !== bookId)
+    );
   };
 
   return (
@@ -104,9 +143,17 @@ function Home() {
             </div>
           ) : books.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-10 gap-y-12">
-              {books.map((book) => (
-                <Book key={book.key} book={book} />
-              ))}
+              {books.map((book) => {
+                const bookId = book.key.split('/').pop();
+                return (
+                  <Book
+                    key={book.key}
+                    book={book}
+                    isStarred={starredBooks.includes(bookId)}
+                    onStarChange={(starred) => handleStarChange(bookId, starred)}
+                  />
+                );
+              })}
             </div>
           ) : (
             searched && (
