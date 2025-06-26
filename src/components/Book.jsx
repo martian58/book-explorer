@@ -1,21 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
+
+const BASE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 // Star icon for favorites
-function StarButton({ isFavorite, onClick }) {
+function StarButton({ isFavorite, onClick, disabled }) {
   return (
     <button
       type="button"
       aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       className={`absolute top-2 right-2 z-10 bg-black/50 rounded-full p-1.5 shadow transition
         ${isFavorite ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-400'}
-        focus:outline-none focus:ring-2 focus:ring-yellow-400`}
+        focus:outline-none focus:ring-2 focus:ring-yellow-400
+        ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
       onClick={e => {
         e.stopPropagation();
         e.preventDefault();
         onClick();
       }}
       tabIndex={0}
+      disabled={disabled}
     >
       <svg
         className="w-6 h-6"
@@ -33,8 +38,10 @@ function StarButton({ isFavorite, onClick }) {
   );
 }
 
-function Book({ book }) {
-  const [isFavorite, setIsFavorite] = useState(false);
+function Book({ book, isStarred, onStarChange }) {
+  const { getToken, isSignedIn } = useAuth();
+  const [isFavorite, setIsFavorite] = useState(isStarred);
+  const [checking, setChecking] = useState(false);
 
   const cover = book.cover_i
     ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
@@ -42,18 +49,44 @@ function Book({ book }) {
 
   const id = book.key.split('/').pop();
 
-  // Demo rating algorithm - consider using real data if available
   const rating = Math.min(5, Math.max(1, (book.title.length + (book.author_name?.[0]?.length || 0)) % 6));
-
   const tooltipText = [
     book.title,
     `Author: ${book.author_name?.join(', ') ?? 'Unknown'}`,
     `Published: ${book.first_publish_year ?? 'N/A'}`
   ].join('\n');
-
   const authors = book.author_name?.slice(0, 2) || [];
 
-  // Responsive card with favorite
+  // Sync local favorite state with prop
+  useEffect(() => {
+    setIsFavorite(isStarred);
+  }, [isStarred]);
+
+  // Handle star/unstar
+  const handleStarClick = async () => {
+    if (!isSignedIn) return; // Optionally trigger Clerk sign in here
+    setChecking(true);
+    const token = await getToken();
+    if (!isFavorite) {
+      // Star the book
+      await fetch(`${BASE_API_URL}/api/starred/${id}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setIsFavorite(true);
+      onStarChange(true);
+    } else {
+      // Unstar the book
+      await fetch(`${BASE_API_URL}/api/starred/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setIsFavorite(false);
+      onStarChange(false);
+    }
+    setChecking(false);
+  };
+
   return (
     <div className="w-full max-w-xs sm:max-w-[320px] md:max-w-[360px] flex">
       <Link
@@ -77,10 +110,13 @@ function Book({ book }) {
           {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none"></div>
           {/* Star/Favorite Button */}
-          <StarButton
-            isFavorite={isFavorite}
-            onClick={() => setIsFavorite(fav => !fav)}
-          />
+          {isSignedIn && (
+            <StarButton
+              isFavorite={isFavorite}
+              onClick={handleStarClick}
+              disabled={checking}
+            />
+          )}
         </div>
         <div className="p-4 md:p-5 flex-1 flex flex-col">
           <h2 className="text-lg md:text-xl font-bold text-white mb-1 line-clamp-2 min-h-[2.5rem] tracking-tight">
